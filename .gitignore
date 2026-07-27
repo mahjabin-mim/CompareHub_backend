@@ -1,0 +1,31 @@
+# .NET build artifacts
+bin/
+obj/
+**/bin/
+**/obj/
+
+# Visual Studio files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+*.sln.iml
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+
+# Local configuration
+appsettings.*.json
+*.local.settings.json
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
