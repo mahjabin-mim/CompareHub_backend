@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -26,13 +27,24 @@ var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "FrontendCorsPolicy";
 
 builder.Configuration.AddJsonFile("app/Host/API/appsettings.json", optional: false, reloadOnChange: true);
+// Re-added after the file above so real deployment secrets (env vars) override the checked-in defaults.
+builder.Configuration.AddEnvironmentVariables();
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 
+// Render exposes managed Postgres as a postgres:// URI, which Npgsql's keyword=value
+// connection strings don't parse; build one from the individual pieces when present.
+var dbHost = builder.Configuration["DB_HOST"];
+var connectionString = string.IsNullOrEmpty(dbHost)
+    ? builder.Configuration.GetConnectionString("DefaultConnection")
+    : $"Host={dbHost};Port={builder.Configuration["DB_PORT"]};" +
+      $"Database={builder.Configuration["DB_NAME"]};Username={builder.Configuration["DB_USER"]};" +
+      $"Password={builder.Configuration["DB_PASSWORD"]};SSL Mode=Require;Trust Server Certificate=true";
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
@@ -117,6 +129,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Render terminates TLS at its edge and forwards plain HTTP; without trusting X-Forwarded-Proto,
+// UseHttpsRedirection below would redirect-loop every request.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 app.UseHttpsRedirection();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
@@ -129,5 +150,13 @@ isEfDesignTime = isEfDesignTime || args.Contains("--ef-design-time");
 
 if (!isEfDesignTime)
 {
+    // Render (and most container hosts) assign the listen port via $PORT at runtime.
+    var containerPort = Environment.GetEnvironmentVariable("PORT");
+    if (!string.IsNullOrEmpty(containerPort))
+    {
+        app.Urls.Clear();
+        app.Urls.Add($"http://0.0.0.0:{containerPort}");
+    }
+
     app.Run();
 }

@@ -1,0 +1,53 @@
+databases:
+  # NOTE: Render's free Postgres plan is deleted 30 days after creation.
+  # Fine for testing this deploy; upgrade the plan (or point at a different
+  # Postgres host) before relying on it for real data.
+  - name: comparehub-db
+    plan: free
+    databaseName: comparehub
+    user: comparehub
+
+services:
+  - type: web
+    name: comparehub-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    branch: master
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # Npgsql needs keyword=value format, not Render's postgres:// URI, so the
+      # individual pieces are wired together into a connection string in Program.cs.
+      - key: DB_HOST
+        fromDatabase:
+          name: comparehub-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: comparehub-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: comparehub-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: comparehub-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: comparehub-db
+          property: password
+      - key: Jwt__Issuer
+        value: CompareHub
+      - key: Jwt__Audience
+        value: CompareHub.Client
+      - key: Jwt__SecretKey
+        generateValue: true
+      # Update this to your deployed frontend's real Vercel URL, then add
+      # more Cors__AllowedOrigins__N entries for any additional origins.
+      - key: Cors__AllowedOrigins__0
+        value: https://your-frontend.vercel.app
