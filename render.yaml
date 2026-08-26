@@ -47,7 +47,7 @@ services:
         value: CompareHub.Client
       - key: Jwt__SecretKey
         generateValue: true
-      # Update this to your deployed frontend's real Vercel URL, then add
-      # more Cors__AllowedOrigins__N entries for any additional origins.
+      # Add more Cors__AllowedOrigins__N entries for any additional origins
+      # (e.g. a custom domain, or preview deployment URLs).
       - key: Cors__AllowedOrigins__0
-        value: https://your-frontend.vercel.app
+        value: https://comparehubfrontend.vercel.app
