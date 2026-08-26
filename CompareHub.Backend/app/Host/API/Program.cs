@@ -150,6 +150,13 @@ isEfDesignTime = isEfDesignTime || args.Contains("--ef-design-time");
 
 if (!isEfDesignTime)
 {
+    // Single free-tier instance, so applying pending migrations on boot is safe here;
+    // revisit with a separate migration step if this ever runs multiple instances.
+    using (var scope = app.Services.CreateScope())
+    {
+        scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.Migrate();
+    }
+
     // Render (and most container hosts) assign the listen port via $PORT at runtime.
     var containerPort = Environment.GetEnvironmentVariable("PORT");
     if (!string.IsNullOrEmpty(containerPort))
